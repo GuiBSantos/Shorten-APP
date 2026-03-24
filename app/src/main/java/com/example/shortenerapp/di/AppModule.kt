@@ -1,6 +1,7 @@
 package com.example.shortenerapp.di
 
 import android.content.Context
+import com.example.shortenerapp.data.local.ThemeManager
 import com.example.shortenerapp.data.local.TokenManager
 import com.example.shortenerapp.data.network.ApiService
 import dagger.Module
@@ -20,7 +21,7 @@ object AppModule {
     @Singleton
     fun provideRetrofit(): Retrofit {
         return Retrofit.Builder()
-            .baseUrl("http://10.0.2.2:8080/")
+            .baseUrl("http://192.168.1.11:8080/")
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
@@ -35,5 +36,11 @@ object AppModule {
     @Singleton
     fun provideTokenManager(@ApplicationContext context: Context): TokenManager {
         return TokenManager(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideThemeManager(@ApplicationContext context: Context): ThemeManager {
+        return ThemeManager(context)
     }
 }

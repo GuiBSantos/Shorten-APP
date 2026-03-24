@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import com.example.shortenerapp.R
+import com.example.shortenerapp.data.model.HistoricoItem
 import com.example.shortenerapp.ui.theme.ArkhipFont
 import com.example.shortenerapp.ui.viewmodel.ShortenerViewModel
 
@@ -47,7 +48,11 @@ fun EncurtadorScreen(
     onToggleTheme: () -> Unit,
     isDarkTheme: Boolean
 ) {
-    // Estados locais
+    val historico by viewModel.historico.collectAsState()
+    val isLoadingHistorico by viewModel.isLoadingHistorico.collectAsState()
+    val isLoadingEncurtar by viewModel.isLoadingEncurtar.collectAsState()
+    val userAvatarUrl by viewModel.userAvatarUrl.collectAsState()
+
     var urlDigitada by remember { mutableStateOf("") }
     var resultado by remember { mutableStateOf("") }
     var inputCliques by remember { mutableStateOf("") }
@@ -109,9 +114,7 @@ fun EncurtadorScreen(
                 .background(Color.Black.copy(alpha = if (isAppDark) 0.4f else 0.2f))
         )
 
-        // --- CONTEÚDO PRINCIPAL ---
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            // Em telas grandes, limita a largura a 600dp para ficar centralizado e bonito
             val contentWidth = if (maxWidth > 600.dp) 600.dp else maxWidth
 
             Column(
@@ -123,7 +126,6 @@ fun EncurtadorScreen(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Header (Fixo no topo da coluna)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -167,10 +169,9 @@ fun EncurtadorScreen(
                         Spacer(modifier = Modifier.width(4.dp))
 
                         IconButton(onClick = onNavigateToProfile) {
-                            val avatarUrl = viewModel.userAvatarUrl.value
-                            if (avatarUrl != null) {
+                            if (userAvatarUrl != null) {
                                 AsyncImage(
-                                    model = avatarUrl,
+                                    model = userAvatarUrl,
                                     contentDescription = "Perfil",
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
@@ -196,12 +197,10 @@ fun EncurtadorScreen(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // --- COLUNA CENTRALIZADA (Inputs e Botões) ---
                 Column(
                     modifier = Modifier.width(contentWidth),
-                    verticalArrangement = Arrangement.spacedBy(24.dp) // Espaçamento maior entre blocos
+                    verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
-                    // Inputs
                     InputsSection(
                         urlDigitada, { urlDigitada = it },
                         inputCliques, { if (it.all { c -> c.isDigit() }) inputCliques = it },
@@ -211,10 +210,10 @@ fun EncurtadorScreen(
                         transparentInputColors, labelColor, contrastButtonColor, textColor
                     )
 
-                    // Ação (Botão Encurtar e Resultado)
                     ActionSection(
                         urlDigitada, inputCliques, inputTempo, unidadeTempo,
                         viewModel,
+                        isLoadingEncurtar,
                         resultado, { resultado = it },
                         context, contrastButtonColor, labelColor, textColor, clipboardManager,
                         { mensagemPersonalizada = ""; mostrarDialogoShare = true }
@@ -224,9 +223,15 @@ fun EncurtadorScreen(
         }
 
         if (mostrarDialogoHistorico) {
-            DialogHistoricoContent(isAppDark, viewModel, clipboardManager, context) {
-                mostrarDialogoHistorico = false
-            }
+            DialogHistoricoContent(
+                isAppDark = isAppDark,
+                historico = historico,
+                isLoading = isLoadingHistorico,
+                onDelete = { item -> viewModel.deletarUrl(item, {}, {}) },
+                clipboardManager = clipboardManager,
+                context = context,
+                onDismiss = { mostrarDialogoHistorico = false }
+            )
         }
 
         if (mostrarDialogoShare) {
@@ -240,8 +245,6 @@ fun EncurtadorScreen(
         }
     }
 }
-
-// --- SUB-COMPONENTES (Podem ser copiados do código anterior ou mantidos aqui) ---
 
 @Composable
 fun InputsSection(
@@ -323,6 +326,7 @@ fun InputsSection(
 fun ActionSection(
     url: String, cliques: String, tempo: String, unidade: String,
     viewModel: ShortenerViewModel,
+    isLoading: Boolean,
     resultado: String, onResultadoChange: (String) -> Unit,
     context: android.content.Context,
     contrastColor: Color, labelColor: Color, textColor: Color,
@@ -365,7 +369,7 @@ fun ActionSection(
         ),
         enabled = isButtonEnabled
     ) {
-        if (viewModel.isLoadingEncurtar.value) {
+        if (isLoading) {
             CircularProgressIndicator(color = contrastColor, modifier = Modifier.size(24.dp))
         } else {
             Text(
@@ -407,12 +411,12 @@ fun ActionSection(
     }
 }
 
-// ... DialogHistoricoContent e DialogShareContent ...
-// (Mantenha os dialogs que você já tem no código anterior, eles não precisam mudar)
 @Composable
 fun DialogHistoricoContent(
     isAppDark: Boolean,
-    viewModel: ShortenerViewModel,
+    historico: List<HistoricoItem>,
+    isLoading: Boolean,
+    onDelete: (HistoricoItem) -> Unit,
     clipboardManager: androidx.compose.ui.platform.ClipboardManager,
     context: android.content.Context,
     onDismiss: () -> Unit
@@ -466,14 +470,14 @@ fun DialogHistoricoContent(
                     )
 
                     Box(modifier = Modifier.heightIn(max = 400.dp)) {
-                        if (viewModel.isLoadingHistorico.value) {
+                        if (isLoading) {
                             Box(
                                 modifier = Modifier.fillMaxWidth().height(100.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 CircularProgressIndicator(color = itemTitleColor)
                             }
-                        } else if (viewModel.historico.isEmpty()) {
+                        } else if (historico.isEmpty()) {
                             Box(
                                 modifier = Modifier.fillMaxWidth().padding(20.dp),
                                 contentAlignment = Alignment.Center
@@ -484,7 +488,7 @@ fun DialogHistoricoContent(
                             LazyColumn(
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                items(viewModel.historico) { item ->
+                                items(historico) { item ->
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -534,12 +538,7 @@ fun DialogHistoricoContent(
                                             }
 
                                             IconButton(
-                                                onClick = {
-                                                    viewModel.deletarUrl(
-                                                        item,
-                                                        {},
-                                                        {})
-                                                },
+                                                onClick = { onDelete(item) },
                                                 modifier = Modifier.size(36.dp)
                                             ) {
                                                 Icon(

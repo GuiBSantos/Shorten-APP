@@ -5,12 +5,14 @@ import com.example.shortenerapp.data.model.ShortenUrlRequest
 import com.example.shortenerapp.data.model.ShortenUrlResponse
 import com.example.shortenerapp.data.model.UserResponse
 import com.example.shortenerapp.data.network.ApiService
-import com.example.shortenerapp.data.network.RetrofitClient
 import retrofit2.Response
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class UrlRepository(private val tokenManager: TokenManager) {
-
-    private val api: ApiService = RetrofitClient.getService(tokenManager)
+@Singleton
+class UrlRepository @Inject constructor(
+    private val api: ApiService
+) {
 
     suspend fun shortenUrl(request: ShortenUrlRequest) = api.encurtarUrl(request)
 
@@ -18,7 +20,6 @@ class UrlRepository(private val tokenManager: TokenManager) {
 
     suspend fun getUserHistory(): Result<List<ShortenUrlResponse>> {
         return try {
-
             val response = api.getMyUrls()
 
             if (response.isSuccessful && response.body() != null) {

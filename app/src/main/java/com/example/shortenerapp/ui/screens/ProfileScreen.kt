@@ -57,6 +57,13 @@ fun ProfileScreen(
 ) {
     val context = LocalContext.current
 
+    // Coleta de estados do ViewModel
+    val username by viewModel.username.collectAsState()
+    val email by viewModel.email.collectAsState()
+    val avatarUrl by viewModel.avatarUrl.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val feedbackMessage by viewModel.feedbackMessage.collectAsState()
+
     var isPasswordExpanded by remember { mutableStateOf(false) }
     var showCurrentPass by remember { mutableStateOf(false) }
     var showNewPass by remember { mutableStateOf(false) }
@@ -69,7 +76,7 @@ fun ProfileScreen(
         viewModel.confirmNewPassword = ""
         viewModel.deleteAccountPassword = ""
         viewModel.editUsernameText = ""
-        viewModel.feedbackMessage = null
+        viewModel.clearFeedback()
         isPasswordExpanded = false
         showCurrentPass = false
         showNewPass = false
@@ -89,10 +96,10 @@ fun ProfileScreen(
     }
     val googleSignInClient = remember { GoogleSignIn.getClient(context, gso) }
 
-    LaunchedEffect(viewModel.feedbackMessage) {
-        viewModel.feedbackMessage?.let {
+    LaunchedEffect(feedbackMessage) {
+        feedbackMessage?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-            viewModel.feedbackMessage = null
+            viewModel.clearFeedback()
         }
     }
 
@@ -158,12 +165,12 @@ fun ProfileScreen(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    AvatarSection(viewModel, photoPickerLauncher, isDark, accentColor)
+                    AvatarSection(avatarUrl, isLoading, photoPickerLauncher, isDark, accentColor)
                     Spacer(modifier = Modifier.height(20.dp))
-                    UserInfoSection(viewModel, textColor, accentColor, subTextColor)
+                    UserInfoSection(username, email, { viewModel.editUsernameText = username; viewModel.showEditUsernameDialog = true }, textColor, accentColor, subTextColor)
                     Spacer(modifier = Modifier.height(40.dp))
                     PasswordSection(
-                        viewModel, isPasswordExpanded, { isPasswordExpanded = !isPasswordExpanded },
+                        viewModel, isLoading, isPasswordExpanded, { isPasswordExpanded = !isPasswordExpanded },
                         showCurrentPass, { showCurrentPass = !showCurrentPass },
                         showNewPass, { showNewPass = !showNewPass },
                         showConfirmPass, { showConfirmPass = !showConfirmPass },
@@ -190,7 +197,7 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.height(24.dp))
                         Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                             TextButton(onClick = { viewModel.showEditUsernameDialog = false }) { Text("Cancelar", color = dialogSubColor) }
-                            Button(onClick = { viewModel.updateUsername(onSuccess = { viewModel.showEditUsernameDialog = false }) }, colors = ButtonDefaults.buttonColors(containerColor = accentColor), shape = RoundedCornerShape(12.dp), enabled = !viewModel.isLoading && viewModel.editUsernameText.isNotBlank()) { if(viewModel.isLoading) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp)) else Text("Salvar") }
+                            Button(onClick = { viewModel.updateUsername(onSuccess = { viewModel.showEditUsernameDialog = false }) }, colors = ButtonDefaults.buttonColors(containerColor = accentColor), shape = RoundedCornerShape(12.dp), enabled = !isLoading && viewModel.editUsernameText.isNotBlank()) { if(isLoading) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp)) else Text("Salvar") }
                         }
                     }
                 }
@@ -211,7 +218,7 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.height(24.dp))
                         Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                             TextButton(onClick = { viewModel.showDeleteAccountDialog = false }) { Text("Cancelar", color = dialogSubColor) }
-                            Button(onClick = { viewModel.deleteAccount(onSuccess = { viewModel.showDeleteAccountDialog = false; googleSignInClient.signOut().addOnCompleteListener { onLogout() } }) }, colors = ButtonDefaults.buttonColors(containerColor = dangerColor), shape = RoundedCornerShape(12.dp), enabled = !viewModel.isLoading && viewModel.deleteAccountPassword.isNotBlank()) { if(viewModel.isLoading) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp)) else Text("Excluir Conta") }
+                            Button(onClick = { viewModel.deleteAccount(onSuccess = { viewModel.showDeleteAccountDialog = false; googleSignInClient.signOut().addOnCompleteListener { onLogout() } }) }, colors = ButtonDefaults.buttonColors(containerColor = dangerColor), shape = RoundedCornerShape(12.dp), enabled = !isLoading && viewModel.deleteAccountPassword.isNotBlank()) { if(isLoading) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp)) else Text("Excluir Conta") }
                         }
                     }
                 }
@@ -221,30 +228,30 @@ fun ProfileScreen(
 }
 
 @Composable
-fun AvatarSection(viewModel: ProfileViewModel, launcher: androidx.activity.result.ActivityResultLauncher<PickVisualMediaRequest>, isDark: Boolean, accentColor: Color) {
+fun AvatarSection(avatarUrl: String?, isLoading: Boolean, launcher: androidx.activity.result.ActivityResultLauncher<PickVisualMediaRequest>, isDark: Boolean, accentColor: Color) {
     Box(modifier = Modifier.size(130.dp).clickable { launcher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, contentAlignment = Alignment.Center) {
         Box(modifier = Modifier.size(120.dp).clip(CircleShape)) {
-            if (viewModel.avatarUrl != null) AsyncImage(model = viewModel.avatarUrl, contentDescription = "Avatar", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            if (avatarUrl != null) AsyncImage(model = avatarUrl, contentDescription = "Avatar", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             else Box(modifier = Modifier.fillMaxSize().background(if(isDark) Color.White.copy(0.1f) else Color.White), contentAlignment = Alignment.Center) { Icon(Icons.Default.Person, null, modifier = Modifier.size(60.dp), tint = if(isDark) Color.White.copy(0.5f) else Color.Gray) }
         }
         Box(modifier = Modifier.align(Alignment.BottomEnd).offset((-4).dp, (-4).dp).size(36.dp).clip(CircleShape).background(Color.Black.copy(0.6f)).border(1.dp, Color.White.copy(0.3f), CircleShape), contentAlignment = Alignment.Center) { Icon(Icons.Default.Edit, null, tint = Color.White, modifier = Modifier.size(18.dp)) }
-        if (viewModel.isLoading) CircularProgressIndicator(modifier = Modifier.size(120.dp), color = accentColor)
+        if (isLoading) CircularProgressIndicator(modifier = Modifier.size(120.dp), color = accentColor)
     }
 }
 
 @Composable
-fun UserInfoSection(viewModel: ProfileViewModel, textColor: Color, accentColor: Color, subTextColor: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { viewModel.editUsernameText = viewModel.username; viewModel.showEditUsernameDialog = true }) {
-        Text(viewModel.username, style = TextStyle(fontFamily = ArkhipFont, fontSize = 26.sp, color = textColor))
+fun UserInfoSection(username: String, email: String, onEditClick: () -> Unit, textColor: Color, accentColor: Color, subTextColor: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onEditClick() }) {
+        Text(username, style = TextStyle(fontFamily = ArkhipFont, fontSize = 26.sp, color = textColor))
         Spacer(modifier = Modifier.width(8.dp))
         Icon(Icons.Default.Edit, "Editar Nome", tint = accentColor, modifier = Modifier.size(18.dp))
     }
-    Text(viewModel.email, fontSize = 16.sp, color = subTextColor)
+    Text(email, fontSize = 16.sp, color = subTextColor)
 }
 
 @Composable
 fun PasswordSection(
-    viewModel: ProfileViewModel, isExpanded: Boolean, onToggle: () -> Unit,
+    viewModel: ProfileViewModel, isLoading: Boolean, isExpanded: Boolean, onToggle: () -> Unit,
     showCurrent: Boolean, onToggleCurrent: () -> Unit,
     showNew: Boolean, onToggleNew: () -> Unit,
     showConfirm: Boolean, onToggleConfirm: () -> Unit,
@@ -272,7 +279,7 @@ fun PasswordSection(
                 if(viewModel.confirmNewPassword.isNotEmpty() && viewModel.confirmNewPassword != viewModel.newPassword) { Text("Senhas não coincidem", color = dangerColor, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp)) }
                 Spacer(modifier = Modifier.height(20.dp))
                 val isFormValid = viewModel.newPassword.length >= 8 && viewModel.newPassword.any { it.isUpperCase() } && viewModel.newPassword.any { !it.isLetterOrDigit() } && viewModel.newPassword == viewModel.confirmNewPassword && viewModel.currentPassword.isNotEmpty()
-                Button(onClick = { viewModel.changePassword() }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = accentColor, disabledContainerColor = accentColor.copy(0.4f)), shape = RoundedCornerShape(12.dp), enabled = !viewModel.isLoading && isFormValid) { if (viewModel.isLoading) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp)) else Text("ATUALIZAR SENHA", fontWeight = FontWeight.Bold) }
+                Button(onClick = { viewModel.changePassword() }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = accentColor, disabledContainerColor = accentColor.copy(0.4f)), shape = RoundedCornerShape(12.dp), enabled = !isLoading && isFormValid) { if (isLoading) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp)) else Text("ATUALIZAR SENHA", fontWeight = FontWeight.Bold) }
             }
         }
     }

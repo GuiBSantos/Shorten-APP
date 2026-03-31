@@ -1,4 +1,4 @@
-package com.example.shortenerapp
+package com.guibsantos.shorten
 
 import org.junit.Test
 

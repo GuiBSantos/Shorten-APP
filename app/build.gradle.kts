@@ -9,14 +9,12 @@ plugins {
 }
 
 android {
-    namespace = "com.example.shortenerapp"
-    compileSdk {
-        version = release(36)
-    }
+    namespace = "com.guibsantos.shorten"
+    compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.shortenerapp"
-        minSdk = 35
+        applicationId = "com.guibsantos.shorten"
+        minSdk = 24
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -46,7 +44,7 @@ android {
 }
 
 dependencies {
-    implementation("androidx.compose.animation:animation:1.x.x")
+    implementation("androidx.compose.animation:animation:1.7.0")
     implementation("com.google.android.material:material:1.11.0")
     implementation("io.coil-kt:coil-compose:2.5.0")
     implementation("androidx.datastore:datastore-preferences:1.0.0")

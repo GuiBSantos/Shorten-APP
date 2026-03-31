@@ -1,0 +1,82 @@
+package com.guibsantos.shorten.data.network
+
+import com.guibsantos.shorten.data.model.ChangePasswordRequest
+import com.guibsantos.shorten.data.model.DeleteAccountRequest
+import com.guibsantos.shorten.data.model.ForgotPasswordRequest
+import com.guibsantos.shorten.data.model.GoogleLoginRequest
+import com.guibsantos.shorten.data.model.GoogleLoginResponse
+import com.guibsantos.shorten.data.model.LoginRequest
+import com.guibsantos.shorten.data.model.LoginResponse
+import com.guibsantos.shorten.data.model.RegisterRequest
+import com.guibsantos.shorten.data.model.ResetPasswordRequest
+import com.guibsantos.shorten.data.model.ShortenUrlRequest
+import com.guibsantos.shorten.data.model.ShortenUrlResponse
+import com.guibsantos.shorten.data.model.UpdateUsernameRequest
+import com.guibsantos.shorten.data.model.UserResponse
+import com.guibsantos.shorten.data.model.ValidateCodeRequest
+import okhttp3.MultipartBody
+import okhttp3.ResponseBody
+import retrofit2.Response
+import retrofit2.http.Body
+import retrofit2.http.DELETE
+import retrofit2.http.GET
+import retrofit2.http.HTTP
+import retrofit2.http.Multipart
+import retrofit2.http.PATCH
+import retrofit2.http.POST
+import retrofit2.http.Part
+import retrofit2.http.Path
+import retrofit2.http.Query
+
+interface ApiService {
+
+    @POST("auth/login")
+    suspend fun login(@Body request: LoginRequest): Response<LoginResponse>
+
+    @POST("auth/register")
+    suspend fun register(@Body request: RegisterRequest): Response<ResponseBody>
+
+    @POST("api/shorten")
+    suspend fun encurtarUrl(@Body request: ShortenUrlRequest): Response<ShortenUrlResponse>
+
+    @DELETE("api/urls/{shortCode}")
+    suspend fun deletarUrl(@Path("shortCode") shortCode: String): Response<Void>
+
+    @GET("api/my-urls")
+    suspend fun getMyUrls(): Response<List<ShortenUrlResponse>>
+
+    @GET("auth/me")
+    suspend fun getUserProfile(): Response<UserResponse>
+
+    @GET("auth/check-username/{username}")
+    suspend fun checkUsername(@Path("username") username: String): Response<Boolean>
+
+    @GET("auth/check-email")
+    suspend fun checkEmail(@Query("value") email: String): Response<Boolean>
+
+    @POST("auth/change-password")
+    suspend fun changePassword(@Body request: ChangePasswordRequest): Response<Void>
+
+    @POST("auth/forgot-password")
+    suspend fun forgotPassword(@Body request: ForgotPasswordRequest): Response<Void>
+
+    @Multipart
+    @POST("users/avatar")
+    suspend fun uploadAvatar(@Part image: MultipartBody.Part): Response<UserResponse>
+
+    @POST("auth/reset-password")
+    suspend fun resetPassword(@Body req: ResetPasswordRequest): Response<Void>
+
+    @POST("auth/validate-code")
+    suspend fun validateCode(@Body req: ValidateCodeRequest): Response<Void>
+
+    @PATCH("auth/update-username")
+    suspend fun updateUsername(@Body req: UpdateUsernameRequest): Response<Void>
+
+    @HTTP(method = "DELETE", path = "auth/delete-account", hasBody = true)
+    suspend fun deleteAccount(@Body req: DeleteAccountRequest): Response<Void>
+
+    @POST("auth/google")
+    suspend fun loginWithGoogle(@Body request: GoogleLoginRequest): Response<GoogleLoginResponse>
+
+}

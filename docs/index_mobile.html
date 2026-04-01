@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Shorten APP · Architecture</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    :root {
+      --bg:#07070f; --border:rgba(255,255,255,0.07);
+      --text:#e8e6f0; --muted:#5a5870; --accent:#a06dfa;
+    }
+    html,body { width:100%; height:100%; background:var(--bg); color:var(--text); font-family:'JetBrains Mono',monospace; overflow:hidden; }
+    canvas { display:block; position:fixed; inset:0; }
+    #labels { position:fixed; inset:0; pointer-events:none; z-index:5; }
+    .node-label {
+      position:absolute; transform:translate(-50%,-50%);
+      font-size:10px; font-weight:500; letter-spacing:.05em;
+      color:rgba(232,230,240,.8); white-space:nowrap;
+      text-shadow:0 0 10px #07070f,0 0 4px #07070f; pointer-events:none;
+    }
+    #header {
+      position:fixed; top:0; left:0; right:0; z-index:20;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:16px 28px;
+      background:linear-gradient(to bottom,rgba(7,7,15,.97) 70%,transparent);
+    }
+    #header h1 { font-family:'Syne',sans-serif; font-size:14px; font-weight:800; letter-spacing:.1em; }
+    #header h1 span { color:var(--accent); }
+    #header .tag { font-size:10px; letter-spacing:.1em; color:var(--muted); border:1px solid var(--border); padding:4px 10px; border-radius:20px; }
+    #legend {
+      position:fixed; right:24px; top:50%; transform:translateY(-50%);
+      z-index:10; display:flex; flex-direction:column; gap:8px;
+    }
+    .leg { display:flex; align-items:center; gap:8px; font-size:10px; color:var(--muted); letter-spacing:.05em; }
+    .leg-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    #tooltip {
+      position:fixed; pointer-events:none;
+      background:rgba(7,7,15,.95); backdrop-filter:blur(12px);
+      border:1px solid var(--border); border-radius:10px;
+      padding:10px 14px; z-index:20; display:none; min-width:170px;
+    }
+    .tt-name { font-family:'Syne',sans-serif; font-size:13px; font-weight:700; color:var(--text); }
+    .tt-layer { font-size:10px; color:var(--muted); margin-top:2px; letter-spacing:.08em; }
+    .tt-deps { font-size:10px; color:var(--accent); margin-top:6px; line-height:1.6; }
+    #hints {
+      position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+      display:flex; gap:20px; z-index:10;
+      background:rgba(7,7,15,.8); backdrop-filter:blur(10px);
+      border:1px solid var(--border); border-radius:30px; padding:8px 20px;
+    }
+    #hints span { font-size:10px; color:var(--muted); letter-spacing:.06em; }
+    #hints span b { color:var(--text); font-weight:500; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="labels"></div>
+<div id="header">
+  <h1><span>shorten</span>-app</h1>
+  <span class="tag">CLASS DEPENDENCY · MVVM</span>
+</div>
+<div id="legend">
+  <div class="leg"><div class="leg-dot" style="background:#a06dfa"></div>screen</div>
+  <div class="leg"><div class="leg-dot" style="background:#fa6d8f"></div>viewmodel</div>
+  <div class="leg"><div class="leg-dot" style="background:#6dfac5"></div>repository</div>
+  <div class="leg"><div class="leg-dot" style="background:#6db8fa"></div>network</div>
+  <div class="leg"><div class="leg-dot" style="background:#faa86d"></div>local / utils</div>
+  <div class="leg"><div class="leg-dot" style="background:#c8c8d8"></div>model</div>
+  <div class="leg"><div class="leg-dot" style="background:#8afaab"></div>component / theme</div>
+</div>
+<div id="tooltip">
+  <div class="tt-name" id="tt-name"></div>
+  <div class="tt-layer" id="tt-layer"></div>
+  <div class="tt-deps" id="tt-deps"></div>
+</div>
+<div id="hints">
+  <span><b>drag</b> to rotate</span>
+  <span><b>scroll</b> to zoom</span>
+  <span><b>hover</b> for info</span>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const NODES = [
+  // Screens
+  { id:'LoginScreen',      layer:'screen',    color:0xa06dfa, size:11, desc:'Tela de login',           deps:'LoginViewModel, GlassBox, LogoTopBar' },
+  { id:'RegisterScreen',   layer:'screen',    color:0xa06dfa, size:10, desc:'Tela de cadastro',        deps:'RegisterViewModel, GlassBox' },
+  { id:'EncurtadorScreen', layer:'screen',    color:0xa06dfa, size:12, desc:'Tela principal · home',   deps:'ShortenerViewModel, GlassCard, HistoricoItem' },
+  { id:'ProfileScreen',    layer:'screen',    color:0xa06dfa, size:10, desc:'Tela de perfil',          deps:'ProfileViewModel, GlassBox' },
+  { id:'SplashScreen',     layer:'screen',    color:0xa06dfa, size:8,  desc:'Splash inicial',          deps:'AppNavigation' },
+  // ViewModels
+  { id:'LoginViewModel',    layer:'viewmodel', color:0xfa6d8f, size:12, desc:'Estado e lógica de login',    deps:'AuthRepository, TokenManager' },
+  { id:'RegisterViewModel', layer:'viewmodel', color:0xfa6d8f, size:11, desc:'Estado e lógica de cadastro', deps:'AuthRepository' },
+  { id:'ShortenerViewModel',layer:'viewmodel', color:0xfa6d8f, size:13, desc:'Encurtamento e histórico',    deps:'UrlRepository, TokenManager' },
+  { id:'ProfileViewModel',  layer:'viewmodel', color:0xfa6d8f, size:11, desc:'Perfil e foto de usuário',   deps:'AuthRepository, TokenManager' },
+  // Repositories
+  { id:'AuthRepository', layer:'repository', color:0x6dfac5, size:12, desc:'Auth · login · register · OAuth', deps:'ApiService, TokenManager' },
+  { id:'UrlRepository',  layer:'repository', color:0x6dfac5, size:12, desc:'Encurtamento · histórico',       deps:'ApiService, TokenManager' },
+  // Network
+  { id:'ApiService',      layer:'network', color:0x6db8fa, size:11, desc:'Interface Retrofit',         deps:'AuthModels, ShortenUrlModels' },
+  { id:'RetrofitClient',  layer:'network', color:0x6db8fa, size:10, desc:'Configuração HTTP · base URL',deps:'AuthInterceptor' },
+  { id:'AuthInterceptor', layer:'network', color:0x6db8fa, size:9,  desc:'Injeta JWT no header',       deps:'TokenManager' },
+  // Local / Utils
+  { id:'TokenManager',  layer:'local', color:0xfaa86d, size:10, desc:'Armazena e lê o JWT local',  deps:'' },
+  { id:'ThemeManager',  layer:'local', color:0xfaa86d, size:8,  desc:'Gerencia tema claro/escuro', deps:'' },
+  { id:'ErrorUtils',    layer:'local', color:0xfaa86d, size:7,  desc:'Parsing de erros HTTP',      deps:'' },
+  { id:'AppModule',     layer:'local', color:0xfaa86d, size:8,  desc:'Hilt DI · providers',       deps:'RetrofitClient, ApiService' },
+  // Models
+  { id:'AuthModels',      layer:'model', color:0xc8c8d8, size:8, desc:'Login, Register, GoogleLogin...', deps:'' },
+  { id:'ShortenUrlModels',layer:'model', color:0xc8c8d8, size:8, desc:'ShortenRequest, Response...',    deps:'' },
+  { id:'User',            layer:'model', color:0xc8c8d8, size:7, desc:'Modelo de usuário',              deps:'' },
+  { id:'HistoricoItem',   layer:'model', color:0xc8c8d8, size:7, desc:'Item do histórico de URLs',      deps:'' },
+  // Components / Theme
+  { id:'AppNavigation',      layer:'component', color:0x8afaab, size:10, desc:'Grafo de navegação Compose', deps:'todas as screens' },
+  { id:'GlassBox',           layer:'component', color:0x8afaab, size:8,  desc:'Componente glassmorphism',  deps:'' },
+  { id:'GlassCard',          layer:'component', color:0x8afaab, size:7,  desc:'Card com efeito glass',     deps:'' },
+  { id:'LogoTopBar',         layer:'component', color:0x8afaab, size:7,  desc:'Header com logo',           deps:'' },
+  { id:'ModernBackground',   layer:'component', color:0x8afaab, size:7,  desc:'Background animado',        deps:'' },
+  { id:'OrbitalBackground',  layer:'component', color:0x8afaab, size:7,  desc:'Background orbital',        deps:'' },
+  { id:'Theme',              layer:'component', color:0x8afaab, size:8,  desc:'Material 3 theme',          deps:'Color, Type' },
+];
+
+const EDGES = [
+  // screen → viewmodel
+  [0,5],[1,6],[2,7],[3,8],
+  // screen → navigation
+  [4,22],
+  // viewmodel → repository
+  [5,9],[6,9],[7,10],[8,9],
+  // viewmodel → local
+  [5,14],[7,14],[8,14],
+  // repository → network
+  [9,11],[10,11],
+  // repository → local
+  [9,14],[10,14],
+  // network chain
+  [12,13],[13,14],
+  // di → network
+  [17,12],[17,11],
+  // screen → components
+  [0,23],[0,25],[1,23],[2,23],[2,24],[3,23],
+  // navigation → screens
+  [22,0],[22,1],[22,2],[22,3],[22,4],
+  // theme
+  [28,27],[28,26],
+];
+
+const POS = [
+  // Screens (top arc)
+  [-3.5, 3.2, 0],[-1.5, 3.5, 0.5],[0.5, 3.8, 0],[2.5, 3.2, 0.5],[4, 2.5, 0],
+  // ViewModels (mid)
+  [-3, 1, 1],[-1.2, 1.2, 1.5],[0.8, 1.5, 0.5],[2.8, 1, 1],
+  // Repositories
+  [-2, -0.5, 0.5],[2, -0.5, 0.5],
+  // Network
+  [-1, -1.8, 1.5],[1, -1.8, 0],[-0.5, -2.8, 2],
+  // Local/Utils
+  [0, 0.5, -2],[2.5, -0.5, -1.5],[-2, -1.5, -1.5],[1.5, 1.5, -2],
+  // Models
+  [-3.5, -1.5, 0.5],[3.5, -1.5, 0.5],[-3, -3, 0.5],[3, -3, 0.5],
+  // Components
+  [0, 2.5, -1.5],[-2.5, 2.2, -1],[-1.5, 1.5, -2.5],[1.5, 2.5, -1.5],
+  [-3.5, 0.5, -0.5],[3.5, 0.5, -0.5],[2, 2.2, -2],
+];
+
+const SCALE = 58;
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x000000, 0);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 2000);
+camera.position.set(0, 0, 700);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+const dl = new THREE.DirectionalLight(0xffffff, 0.8); dl.position.set(200,300,200); scene.add(dl);
+const dl2 = new THREE.DirectionalLight(0xa06dfa, 0.3); dl2.position.set(-200,-100,100); scene.add(dl2);
+
+// Stars
+const sv = [];
+for(let i=0;i<600;i++) sv.push((Math.random()-.5)*1800,(Math.random()-.5)*1800,(Math.random()-.5)*1800);
+const sg = new THREE.BufferGeometry();
+sg.setAttribute('position', new THREE.Float32BufferAttribute(sv,3));
+scene.add(new THREE.Points(sg, new THREE.PointsMaterial({color:0xffffff,size:.8,transparent:true,opacity:.18})));
+
+const group = new THREE.Group();
+scene.add(group);
+const meshes = [];
+const labelEls = [];
+const labelsDiv = document.getElementById('labels');
+
+NODES.forEach((n,i) => {
+  const geo = new THREE.SphereGeometry(n.size, 28, 28);
+  const mat = new THREE.MeshPhongMaterial({color:n.color, emissive:n.color, emissiveIntensity:.12, shininess:70});
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(POS[i][0]*SCALE, POS[i][1]*SCALE, POS[i][2]*SCALE);
+  mesh.userData = {...n, index:i};
+  group.add(mesh); meshes.push(mesh);
+
+  const hgeo = new THREE.SphereGeometry(n.size*1.8, 20, 20);
+  const hmat = new THREE.MeshBasicMaterial({color:n.color, transparent:true, opacity:.05, side:THREE.BackSide});
+  const halo = new THREE.Mesh(hgeo, hmat); halo.position.copy(mesh.position); group.add(halo);
+
+  const el = document.createElement('div');
+  el.className = 'node-label'; el.textContent = n.id;
+  labelsDiv.appendChild(el); labelEls.push(el);
+});
+
+EDGES.forEach(([a,b]) => {
+  const geo = new THREE.BufferGeometry().setFromPoints([meshes[a].position.clone(), meshes[b].position.clone()]);
+  group.add(new THREE.Line(geo, new THREE.LineBasicMaterial({color:0xa06dfa, transparent:true, opacity:.18})));
+});
+
+let dragging=false, lastX=0, lastY=0, rotX=0.15, rotY=0, autoRot=true;
+
+canvas.addEventListener('mousedown', e=>{dragging=true; autoRot=false; lastX=e.clientX; lastY=e.clientY;});
+window.addEventListener('mouseup', ()=>dragging=false);
+window.addEventListener('mousemove', e=>{
+  if(dragging){
+    rotY += (e.clientX-lastX)*.007; rotX += (e.clientY-lastY)*.007;
+    rotX = Math.max(-Math.PI/2, Math.min(Math.PI/2, rotX));
+    lastX=e.clientX; lastY=e.clientY;
+  }
+  const mouse = new THREE.Vector2((e.clientX/window.innerWidth)*2-1, -(e.clientY/window.innerHeight)*2+1);
+  const ray = new THREE.Raycaster(); ray.setFromCamera(mouse, camera);
+  const hits = ray.intersectObjects(meshes);
+  const tt = document.getElementById('tooltip');
+  if(hits.length){
+    const n = hits[0].object.userData;
+    document.getElementById('tt-name').textContent = n.id;
+    document.getElementById('tt-layer').textContent = n.layer.toUpperCase()+' · '+n.desc;
+    document.getElementById('tt-deps').textContent = n.deps ? '→ '+n.deps : '';
+    tt.style.display='block';
+    tt.style.left=(e.clientX+16)+'px';
+    tt.style.top=(e.clientY-10)+'px';
+    meshes.forEach(m=>m.material.emissiveIntensity=.04);
+    hits[0].object.material.emissiveIntensity=.55;
+  } else {
+    tt.style.display='none';
+    meshes.forEach(m=>m.material.emissiveIntensity=.12);
+  }
+});
+canvas.addEventListener('wheel', e=>{
+  camera.position.z = Math.max(200, Math.min(1200, camera.position.z+e.deltaY*.5));
+});
+canvas.addEventListener('touchstart', e=>{dragging=true; autoRot=false; lastX=e.touches[0].clientX; lastY=e.touches[0].clientY;});
+canvas.addEventListener('touchend', ()=>dragging=false);
+canvas.addEventListener('touchmove', e=>{
+  if(!dragging)return;
+  rotY+=(e.touches[0].clientX-lastX)*.007; rotX+=(e.touches[0].clientY-lastY)*.007;
+  lastX=e.touches[0].clientX; lastY=e.touches[0].clientY;
+});
+
+const tmpV = new THREE.Vector3();
+function toScreen(wp){
+  tmpV.copy(wp); tmpV.project(camera);
+  return{x:(tmpV.x+1)/2*window.innerWidth, y:(-tmpV.y+1)/2*window.innerHeight};
+}
+
+let t=0;
+function animate(){
+  requestAnimationFrame(animate); t+=.004;
+  if(autoRot) rotY+=.003;
+  group.rotation.x=rotX; group.rotation.y=rotY;
+  group.position.y=Math.sin(t)*3;
+  meshes.forEach((m,i)=>{
+    const wp = m.getWorldPosition(new THREE.Vector3());
+    const s = toScreen(wp);
+    const el = labelEls[i]; if(!el)return;
+    el.style.left=s.x+'px';
+    el.style.top=(s.y+NODES[i].size+12)+'px';
+    const zn=(wp.z+700)/1400;
+    el.style.opacity=Math.max(.05,Math.min(.9,zn));
+  });
+  renderer.render(scene,camera);
+}
+animate();
+
+window.addEventListener('resize',()=>{
+  renderer.setSize(window.innerWidth,window.innerHeight);
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+});
+</script>
+</body>
+</html>
